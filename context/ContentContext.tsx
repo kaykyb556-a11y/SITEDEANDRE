@@ -99,6 +99,9 @@ const DEFAULT_CONTENT: SiteContent = {
 interface ContentContextType {
   content: SiteContent;
   isAdminMode: boolean;
+  isAuthenticated: boolean;
+  login: (password: string) => boolean;
+  logout: () => void;
   toggleAdminMode: () => void;
   updateContent: (section: keyof SiteContent, key: string, value: any) => void;
   updateCollectionItem: (section: 'story' | 'lookbook', itemId: string, field: keyof CollectionItem, value: string) => void;
@@ -111,6 +114,7 @@ const ContentContext = createContext<ContentContextType | undefined>(undefined);
 export const ContentProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [content, setContent] = useState<SiteContent>(DEFAULT_CONTENT);
   const [isAdminMode, setIsAdminMode] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   // Load from LocalStorage on mount
   useEffect(() => {
@@ -122,6 +126,13 @@ export const ContentProvider: React.FC<{ children: ReactNode }> = ({ children })
         console.error("Failed to parse saved content", e);
       }
     }
+
+    // Check if session exists (simple persistence for session)
+    const session = sessionStorage.getItem('admin_session');
+    if (session === 'true') {
+      setIsAuthenticated(true);
+      setIsAdminMode(true);
+    }
   }, []);
 
   // Save to LocalStorage whenever content changes
@@ -129,9 +140,31 @@ export const ContentProvider: React.FC<{ children: ReactNode }> = ({ children })
     localStorage.setItem('site_content', JSON.stringify(content));
   }, [content]);
 
-  const toggleAdminMode = () => setIsAdminMode(!isAdminMode);
+  const login = (password: string) => {
+    // Hardcoded password for demonstration
+    if (password === 'admin') {
+      setIsAuthenticated(true);
+      setIsAdminMode(true);
+      sessionStorage.setItem('admin_session', 'true');
+      return true;
+    }
+    return false;
+  };
+
+  const logout = () => {
+    setIsAuthenticated(false);
+    setIsAdminMode(false);
+    sessionStorage.removeItem('admin_session');
+  };
+
+  const toggleAdminMode = () => {
+    if (isAuthenticated) {
+      setIsAdminMode(!isAdminMode);
+    }
+  };
 
   const updateContent = (section: keyof SiteContent, key: string, value: any) => {
+    if (!isAuthenticated) return;
     setContent(prev => ({
       ...prev,
       [section]: {
@@ -142,6 +175,7 @@ export const ContentProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   const updateCollectionItem = (section: 'story' | 'lookbook', itemId: string, field: keyof CollectionItem, value: string) => {
+    if (!isAuthenticated) return;
     setContent(prev => {
       const newItems = prev[section].items.map(item => 
         item.id === itemId ? { ...item, [field]: value } : item
@@ -157,6 +191,7 @@ export const ContentProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   const addCollectionItem = (section: 'story' | 'lookbook', item: CollectionItem) => {
+    if (!isAuthenticated) return;
     setContent(prev => ({
       ...prev,
       [section]: {
@@ -167,6 +202,7 @@ export const ContentProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   const resetContent = () => {
+    if (!isAuthenticated) return;
     if (window.confirm("Tem certeza? Isso resetará todas as edições para o padrão.")) {
       setContent(DEFAULT_CONTENT);
       localStorage.removeItem('site_content');
@@ -176,7 +212,10 @@ export const ContentProvider: React.FC<{ children: ReactNode }> = ({ children })
   return (
     <ContentContext.Provider value={{ 
       content, 
-      isAdminMode, 
+      isAdminMode,
+      isAuthenticated,
+      login,
+      logout,
       toggleAdminMode, 
       updateContent, 
       updateCollectionItem,

@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useContent } from '../context/ContentContext';
-import { Edit2, Image as ImageIcon, Save, Upload, Link as LinkIcon, X } from 'lucide-react';
+import { Edit2, Image as ImageIcon, Save, Upload, Link as LinkIcon, X, LogOut } from 'lucide-react';
 import { processImageFile } from '../utils/image';
 
 interface EditableTextProps {
@@ -187,7 +187,9 @@ export const EditableImage: React.FC<EditableImageProps> = ({ src, alt, onSave, 
 };
 
 export const AdminToolbar: React.FC = () => {
-  const { isAdminMode, toggleAdminMode, resetContent } = useContent();
+  const { isAdminMode, toggleAdminMode, resetContent, isAuthenticated, logout } = useContent();
+
+  if (!isAuthenticated) return null;
 
   return (
     <div className="fixed bottom-6 left-6 z-[100] flex flex-col gap-2">
@@ -200,6 +202,15 @@ export const AdminToolbar: React.FC = () => {
           Resetar
         </button>
       )}
+
+      {/* Logout Button */}
+      <button
+        onClick={logout}
+        className="bg-gray-800/80 backdrop-blur text-white p-3 rounded-full shadow-lg border border-gray-600 hover:bg-gray-700 transition-colors text-xs font-bold"
+        title="Sair do Admin"
+      >
+        <LogOut className="w-5 h-5" />
+      </button>
       
       <button
         onClick={toggleAdminMode}
@@ -208,7 +219,7 @@ export const AdminToolbar: React.FC = () => {
             ? 'bg-[#D4AF37] text-black border-white rotate-0' 
             : 'bg-black/50 backdrop-blur text-white/30 border-white/10 hover:text-[#D4AF37] hover:border-[#D4AF37]'
         }`}
-        title={isAdminMode ? "Sair do modo edição" : "Modo Administrador"}
+        title={isAdminMode ? "Desativar edição" : "Ativar edição"}
       >
         {isAdminMode ? <Save className="w-6 h-6" /> : <Edit2 className="w-5 h-5" />}
       </button>

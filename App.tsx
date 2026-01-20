@@ -6,7 +6,7 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
-import { Menu, X, ChevronLeft, ChevronRight, ArrowRight, Instagram, Hash, ShoppingBag, CheckCircle, Plus, Upload, Link as LinkIcon } from 'lucide-react';
+import { Menu, X, ChevronLeft, ChevronRight, ArrowRight, Instagram, Hash, ShoppingBag, CheckCircle, Plus, Upload, Link as LinkIcon, Lock } from 'lucide-react';
 import FluidBackground from './components/FluidBackground';
 import GradientText from './components/GlitchText';
 import CustomCursor from './components/CustomCursor';
@@ -17,6 +17,7 @@ import { useContent } from './context/ContentContext';
 import { EditableText, EditableImage, AdminToolbar } from './components/Editable';
 import { CollectionItem } from './types';
 import { processImageFile } from './utils/image';
+import AdminLogin from './components/AdminLogin';
 
 const App: React.FC = () => {
   const { content, updateContent, isAdminMode, addCollectionItem } = useContent();
@@ -29,6 +30,8 @@ const App: React.FC = () => {
   const [selectedItem, setSelectedItem] = useState<CollectionItem | null>(null);
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
+
   const [newItem, setNewItem] = useState({
     title: '',
     category: '',
@@ -118,7 +121,10 @@ const App: React.FC = () => {
       <CustomCursor />
       <FluidBackground />
       <AIChat />
+      
+      {/* Admin Logic */}
       <AdminToolbar />
+      <AdminLogin isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
       
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-6 md:px-12 py-6 mix-blend-normal">
@@ -317,15 +323,17 @@ const App: React.FC = () => {
                   <EditableText value={lookbook.label} onSave={(val) => updateContent('lookbook', 'label', val)} />
                 </span>
                 
-                {/* Add Item Button */}
-                <button 
-                  onClick={() => setIsAddModalOpen(true)}
-                  className="flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase text-[#D4AF37] border border-[#D4AF37]/30 px-3 py-1 rounded-full hover:bg-[#D4AF37] hover:text-black transition-all"
-                  data-hover="true"
-                >
-                  <Plus className="w-3 h-3" />
-                  Adicionar Look
-                </button>
+                {/* Add Item Button (Only visible if Admin) */}
+                {isAdminMode && (
+                  <button 
+                    onClick={() => setIsAddModalOpen(true)}
+                    className="flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase text-[#D4AF37] border border-[#D4AF37]/30 px-3 py-1 rounded-full hover:bg-[#D4AF37] hover:text-black transition-all"
+                    data-hover="true"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Adicionar Look
+                  </button>
+                )}
               </div>
 
               <h2 className="text-4xl md:text-6xl font-heading mb-8 text-white">
@@ -513,6 +521,14 @@ const App: React.FC = () => {
              <div className="flex flex-col gap-2 text-sm text-gray-500 font-light">
                <span>&copy; {content.marquee.year} {content.marquee.brandName}. Todos os direitos reservados.</span>
                <span>{content.hero.description.replace(/"/g, '')}</span>
+               {/* Admin Link */}
+               <button 
+                  onClick={() => setIsLoginOpen(true)}
+                  className="text-left text-gray-800 hover:text-gray-600 transition-colors mt-4 text-[10px] uppercase tracking-widest flex items-center gap-1"
+               >
+                 <Lock className="w-3 h-3" />
+                 Área Administrativa
+               </button>
              </div>
           </div>
           
