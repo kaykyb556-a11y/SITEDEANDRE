@@ -6,10 +6,9 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { motion, useScroll, useTransform, AnimatePresence, Reorder } from 'framer-motion';
-import { Menu, X, ChevronLeft, ChevronRight, ArrowRight, Instagram, Hash, ShoppingBag, CheckCircle, Plus, Upload, Link as LinkIcon, Lock, Trash2, CreditCard, Grid, Home, Star, GripVertical, Move, Tag } from 'lucide-react';
+import { Menu, X, ArrowRight, Instagram, Hash, ShoppingBag, CheckCircle, Plus, Upload, Link as LinkIcon, Lock, Trash2, CreditCard, Grid, Move } from 'lucide-react';
 import FluidBackground from './components/FluidBackground';
 import GradientText from './components/GlitchText';
-import CustomCursor from './components/CustomCursor';
 import ArtistCard from './components/ArtistCard';
 import Marquee from './components/Marquee';
 import { useContent } from './context/ContentContext';
@@ -17,6 +16,7 @@ import { EditableText, EditableImage, AdminToolbar } from './components/Editable
 import { CollectionItem } from './types';
 import { processImageFile } from './utils/image';
 import AdminLogin from './components/AdminLogin';
+import CustomCursor from './components/CustomCursor';
 
 const App: React.FC = () => {
   const { 
@@ -30,7 +30,8 @@ const App: React.FC = () => {
     clearCart,
     isCartOpen,
     setIsCartOpen,
-    reorderItems
+    reorderItems,
+    updateCollectionItem
   } = useContent();
   const { hero, story, lookbook, rsvp, theme } = content;
 
@@ -53,14 +54,15 @@ const App: React.FC = () => {
     category: '',
     subtitle: '',
     image: '',
-    description: ''
+    description: '',
+    price: ''
   });
   const [targetSection, setTargetSection] = useState<'lookbook' | 'story'>('lookbook');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Order Form State
   const [orderState, setOrderState] = useState<'idle' | 'submitting' | 'success'>('idle');
-  const [formData, setFormData] = useState({ name: '', email: '', phone: '', address: '' });
+  const [formData, setFormData] = useState({ name: '', phone: '' });
 
   // Reset scroll when changing views
   useEffect(() => {
@@ -86,14 +88,12 @@ const App: React.FC = () => {
     const root = document.documentElement;
     root.style.setProperty('--primary', theme?.primary || '#D4AF37');
     root.style.setProperty('--bg-color', theme?.background || '#0F0F10');
-    // We can add more vars as needed
   }, [theme]);
 
   const scrollToSection = (id: string) => {
-    setCurrentView('home'); // Ensure we are on home view
+    setCurrentView('home');
     setMobileMenuOpen(false);
     
-    // Small delay to allow render if switching from shop
     setTimeout(() => {
       const element = document.getElementById(id);
       if (element) {
@@ -109,6 +109,17 @@ const App: React.FC = () => {
     }, 100);
   };
 
+  const parsePrice = (priceStr?: string): number => {
+    if (!priceStr) return 0;
+    const cleanStr = priceStr.replace(/[^\d,]/g, '').replace(',', '.');
+    return parseFloat(cleanStr) || 0;
+  };
+
+  const calculateTotal = (): string => {
+    const total = cart.reduce((acc, item) => acc + parsePrice(item.price), 0);
+    return total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+
   const handleOrderSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (cart.length === 0) {
@@ -117,33 +128,24 @@ const App: React.FC = () => {
     }
     setOrderState('submitting');
 
-    // WHATSAPP INTEGRATION
-    const PHONE_NUMBER = "559885356924"; // Número atualizado
+    const PHONE_NUMBER = "559870129534"; 
     
     let message = `*NOVO PEDIDO - H&R GRIFES*\n\n`;
     message += `*Cliente:* ${formData.name}\n`;
-    message += `*Contato:* ${formData.phone}\n`;
-    message += `*Email:* ${formData.email}\n`;
-    message += `*Endereço:* ${formData.address}\n\n`;
+    message += `*Contato:* ${formData.phone}\n\n`;
     message += `*ITENS DO PEDIDO:*\n`;
     
     cart.forEach((item, index) => {
       message += `--------------------------------\n`;
       message += `📦 *Item ${index + 1}:* ${item.title}\n`;
       message += `🔖 *Ref:* ${item.category}\n`;
-      
-      // Adiciona link da foto se for uma URL web (não base64) para evitar erros de limite de URL
-      if (item.image && item.image.startsWith('http')) {
-         message += `📸 *Foto:* ${item.image}\n`;
-      }
+      if(item.price) message += `💰 *Valor:* R$ ${item.price}\n`;
     });
 
     message += `--------------------------------\n`;
-    message += `\n💰 *Total de Itens:* ${cart.length}`;
+    message += `\n💰 *Total do Pedido:* ${calculateTotal()}`;
 
     const whatsappUrl = `https://wa.me/${PHONE_NUMBER}?text=${encodeURIComponent(message)}`;
-    
-    // Open WhatsApp
     window.open(whatsappUrl, '_blank');
 
     setOrderState('success');
@@ -160,12 +162,13 @@ const App: React.FC = () => {
       category: newItem.category || (targetSection === 'lookbook' ? `Look 0${lookbook.items.length + 1}` : 'Destaque'),
       subtitle: newItem.subtitle,
       image: newItem.image || 'https://images.unsplash.com/photo-1550614000-4b9519e02a15?q=80&w=1000',
-      description: newItem.description || 'Uma nova adição exclusiva à coleção H&R GRIFES.'
+      description: newItem.description || 'Uma nova adição exclusiva à coleção H&R GRIFES.',
+      price: newItem.price
     };
 
     addCollectionItem(targetSection, itemToAdd);
     setIsAddModalOpen(false);
-    setNewItem({ title: '', category: '', subtitle: '', image: '', description: '' });
+    setNewItem({ title: '', category: '', subtitle: '', image: '', description: '', price: '' });
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -181,7 +184,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Combine items for Shop View
   const allShopItems = [...story.items, ...lookbook.items];
   
   return (
@@ -189,11 +191,9 @@ const App: React.FC = () => {
       <CustomCursor />
       {currentView === 'home' && <FluidBackground />}
       
-      {/* Admin Logic */}
       <AdminToolbar />
       <AdminLogin isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
       
-      {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-6 md:px-12 py-6 bg-gradient-to-b from-[var(--bg-color)] to-transparent backdrop-blur-[2px]">
         <div 
           className="font-heading text-xl md:text-2xl font-bold tracking-widest text-white cursor-pointer z-50 hover:text-[var(--primary)] transition-colors"
@@ -202,7 +202,6 @@ const App: React.FC = () => {
            {content.marquee.brandName}
         </div>
         
-        {/* Desktop Menu */}
         <div className="hidden md:flex gap-12 text-xs font-medium tracking-[0.2em] uppercase items-center">
           <button 
             onClick={() => setCurrentView('home')}
@@ -220,7 +219,6 @@ const App: React.FC = () => {
             <Grid className="w-3 h-3" /> Loja Online
           </button>
 
-          {/* Cart Icon - Desktop */}
           <button 
             onClick={() => setIsCartOpen(true)}
             className="relative p-2 hover:text-[var(--primary)] transition-colors border border-white/20 rounded-full"
@@ -235,7 +233,6 @@ const App: React.FC = () => {
           </button>
         </div>
 
-        {/* Mobile Menu Toggle & Cart */}
         <div className="flex items-center gap-4 md:hidden z-50">
           <button 
             onClick={() => setIsCartOpen(true)}
@@ -258,7 +255,6 @@ const App: React.FC = () => {
         </div>
       </nav>
 
-      {/* Mobile Menu Overlay */}
       <AnimatePresence>
         {mobileMenuOpen && (
           <motion.div
@@ -291,16 +287,13 @@ const App: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* VIEW CONTROLLER */}
       {currentView === 'home' ? (
         <>
-          {/* HERO SECTION */}
           <header id="hero" className="relative h-[100svh] min-h-[600px] flex flex-col items-center justify-center overflow-hidden px-4">
             <motion.div 
               style={{ y, opacity }}
               className="z-10 text-center flex flex-col items-center w-full max-w-7xl pb-20"
             >
-               {/* Subtitle */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -315,7 +308,6 @@ const App: React.FC = () => {
                 <span className="w-8 h-px bg-[var(--primary)]"/>
               </motion.div>
 
-              {/* Main Title */}
               <div className="relative w-full flex justify-center items-center">
                  {isAdminMode ? (
                    <div className="text-[12vw] md:text-[10vw] leading-[0.9] font-heading font-medium tracking-tight text-center text-white">
@@ -372,13 +364,11 @@ const App: React.FC = () => {
               </motion.div>
             </motion.div>
 
-            {/* Cinematic Video Overlay/Effect */}
             <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-color)] via-transparent to-[var(--bg-color)]/50 pointer-events-none" />
           </header>
 
           <Marquee />
 
-          {/* STORY SECTION */}
           <section id="story" className="relative z-10 py-12 md:py-32 bg-[var(--bg-color)]">
             <div className="max-w-[1800px] mx-auto px-4 md:px-6">
               <div className="flex flex-col md:flex-row justify-between items-end mb-12 md:mb-24 px-4 border-b border-white/5 pb-8">
@@ -397,7 +387,6 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              {/* Story Grid with Reorder Capability */}
               {isAdminMode ? (
                 <Reorder.Group 
                   axis="y" 
@@ -412,7 +401,6 @@ const App: React.FC = () => {
                       value={item}
                       className={`relative ${idx !== 0 ? 'md:border-l border-white/5' : ''}`}
                     >
-                       {/* Enhanced Drag Handle */}
                       <div className="absolute top-2 left-2 z-30 bg-[var(--primary)] text-black p-3 rounded-lg cursor-grab active:cursor-grabbing shadow-2xl flex items-center gap-2 hover:scale-105 transition-transform border border-black/20">
                         <Move className="w-5 h-5" />
                         <span className="text-xs font-bold uppercase tracking-widest hidden md:block">Mover</span>
@@ -433,12 +421,10 @@ const App: React.FC = () => {
             </div>
           </section>
 
-          {/* LOOKBOOK SECTION */}
           <section id="lookbook" className="relative z-10 py-12 md:py-32 bg-[var(--bg-color)] brightness-110">
             <div className="max-w-7xl mx-auto px-4 md:px-6">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-20 items-start">
                 
-                {/* Text Side */}
                 <div className="lg:col-span-4 order-1 lg:sticky lg:top-32">
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-[#8A2BE2] text-xs font-bold tracking-widest uppercase block">
@@ -497,7 +483,6 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Gallery Side */}
                 <div className="lg:col-span-8 order-2">
                    {isAdminMode ? (
                       <Reorder.Group 
@@ -513,15 +498,12 @@ const App: React.FC = () => {
                              value={look}
                              className={`relative group cursor-pointer overflow-hidden ${i % 2 !== 0 ? 'md:mt-12' : ''}`}
                            >
-                             {/* Enhanced Drag Handle */}
                              <div className="absolute top-2 left-2 z-30 bg-[var(--primary)] text-black p-3 rounded-lg cursor-grab active:cursor-grabbing shadow-2xl flex items-center gap-2 hover:scale-105 transition-transform border border-black/20">
                                 <Move className="w-5 h-5" />
                                 <span className="text-xs font-bold uppercase tracking-widest hidden md:block">Mover</span>
                               </div>
 
-                             <div 
-                                className="aspect-[3/4] bg-gray-900 overflow-hidden relative"
-                             >
+                             <div className="aspect-[3/4] bg-gray-900 overflow-hidden relative">
                                <EditableImage 
                                   src={look.image} 
                                   alt={look.title}
@@ -542,6 +524,9 @@ const App: React.FC = () => {
                                      onSave={(val) => updateContent('lookbook', 'items', lookbook.items.map(item => item.id === look.id ? {...item, title: val} : item))}
                                   />
                                </h3>
+                               {look.price && (
+                                 <p className="text-[var(--primary)] font-bold text-xl md:text-2xl mt-2">R$ {look.price}</p>
+                               )}
                              </div>
                            </Reorder.Item>
                         ))}
@@ -582,6 +567,9 @@ const App: React.FC = () => {
                                      onSave={(val) => updateContent('lookbook', 'items', lookbook.items.map(item => item.id === look.id ? {...item, title: val} : item))}
                                   />
                                </h3>
+                               {look.price && (
+                                 <p className="text-[var(--primary)] font-bold text-xl md:text-2xl mt-2">R$ {look.price}</p>
+                               )}
                              </div>
                            </motion.div>
                          ))}
@@ -593,7 +581,6 @@ const App: React.FC = () => {
             </div>
           </section>
 
-          {/* RSVP/SHOP LINK SECTION */}
           <section id="rsvp" className="relative z-10 py-12 md:py-32 px-4 md:px-6 bg-[var(--bg-color)]">
             <div className="max-w-4xl mx-auto relative">
               <div className="absolute inset-0 border border-[var(--primary)]/20 pointer-events-none transform translate-x-4 translate-y-4 hidden md:block" />
@@ -632,7 +619,6 @@ const App: React.FC = () => {
           </section>
         </>
       ) : (
-        /* ======================== SHOP / CATALOG VIEW ======================== */
         <motion.div 
           initial={{ opacity: 0 }} 
           animate={{ opacity: 1 }} 
@@ -666,7 +652,7 @@ const App: React.FC = () => {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 whileHover={{ y: -5 }}
-                className="group relative bg-[#141415] border border-white/5 overflow-hidden"
+                className="group relative bg-[#141415] border border-white/5 overflow-hidden flex flex-col h-full"
               >
                 <div 
                   className="aspect-[3/4] overflow-hidden relative cursor-pointer"
@@ -678,7 +664,6 @@ const App: React.FC = () => {
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                   />
                   
-                  {/* Quick Add Overlay - UPDATED STYLE */}
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <button 
                       onClick={(e) => {
@@ -692,17 +677,23 @@ const App: React.FC = () => {
                   </div>
                 </div>
                 
-                <div className="p-4">
-                  <div className="text-[var(--primary)] text-[10px] uppercase tracking-widest mb-1">
-                    {item.category}
+                <div className="p-4 flex flex-col flex-1 justify-between">
+                  <div>
+                    <div className="text-[var(--primary)] text-[10px] uppercase tracking-widest mb-1">
+                      {item.category}
+                    </div>
+                    <h3 className="text-white font-heading text-lg mb-2 truncate">{item.title}</h3>
+                    <p className="text-gray-500 text-xs line-clamp-2 font-light mb-2">{item.subtitle}</p>
                   </div>
-                  <h3 className="text-white font-heading text-lg mb-2 truncate">{item.title}</h3>
-                  <p className="text-gray-500 text-xs line-clamp-2 font-light">{item.subtitle}</p>
+                  {item.price && (
+                    <div className="text-[var(--primary)] font-bold text-xl md:text-2xl mt-auto border-t border-white/5 pt-3">
+                       R$ {item.price}
+                    </div>
+                  )}
                 </div>
               </motion.div>
             ))}
             
-            {/* Show message if no items */}
             {allShopItems.length === 0 && (
                <div className="col-span-full py-20 text-center text-gray-500">
                  Nenhum produto disponível no momento.
@@ -712,7 +703,6 @@ const App: React.FC = () => {
         </motion.div>
       )}
 
-      {/* FOOTER (Shared) */}
       <footer className="relative z-10 border-t border-white/5 py-16 bg-[var(--bg-color)]">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-12">
           <div>
@@ -720,7 +710,6 @@ const App: React.FC = () => {
              <div className="flex flex-col gap-2 text-sm text-gray-500 font-light">
                <span>&copy; {content.marquee.year} {content.marquee.brandName}. Todos os direitos reservados.</span>
                <span>{content.hero.description.replace(/"/g, '')}</span>
-               {/* Admin Link */}
                <button 
                   onClick={() => setIsLoginOpen(true)}
                   className="text-left text-gray-800 hover:text-gray-600 transition-colors mt-4 text-[10px] uppercase tracking-widest flex items-center gap-1"
@@ -739,7 +728,6 @@ const App: React.FC = () => {
         </div>
       </footer>
       
-      {/* CART MODAL */}
       <AnimatePresence>
         {isCartOpen && (
            <motion.div
@@ -757,7 +745,6 @@ const App: React.FC = () => {
                onClick={(e) => e.stopPropagation()}
                className="w-full md:w-[500px] bg-[#141415] h-full shadow-2xl border-l border-[var(--primary)]/20 flex flex-col"
              >
-                {/* Header */}
                 <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[var(--bg-color)]">
                   <h2 className="text-2xl font-heading text-white flex items-center gap-3">
                     <ShoppingBag className="text-[var(--primary)]" />
@@ -768,7 +755,6 @@ const App: React.FC = () => {
                   </button>
                 </div>
 
-                {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6">
                   {cart.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-gray-500 space-y-4">
@@ -789,7 +775,12 @@ const App: React.FC = () => {
                           <div className="flex-1 flex flex-col justify-between">
                             <div>
                               <h4 className="text-white font-heading text-lg">{item.title}</h4>
-                              <p className="text-xs text-[var(--primary)] uppercase tracking-widest">{item.category}</p>
+                              <div className="flex justify-between items-center mt-1">
+                                <p className="text-xs text-[var(--primary)] uppercase tracking-widest">{item.category}</p>
+                                {item.price && (
+                                  <p className="text-lg font-bold text-[var(--primary)]">R$ {item.price}</p>
+                                )}
+                              </div>
                             </div>
                             <button 
                               onClick={() => removeFromCart(index)}
@@ -801,7 +792,12 @@ const App: React.FC = () => {
                         </div>
                       ))}
 
-                      {/* Order Form inside Cart */}
+                      {/* Total */}
+                      <div className="flex justify-between items-center border-t border-white/10 pt-4 mt-4">
+                        <span className="font-heading text-lg">Total Estimado</span>
+                        <span className="font-bold text-[var(--primary)] text-2xl">{calculateTotal()}</span>
+                      </div>
+
                       <div className="mt-8 pt-8 border-t border-white/10">
                         <h3 className="text-xl font-heading text-white mb-6">Finalizar no WhatsApp</h3>
                         
@@ -828,13 +824,6 @@ const App: React.FC = () => {
                               className="w-full bg-black/30 border border-white/10 p-3 text-white focus:outline-none focus:border-[var(--primary)] rounded"
                             />
                             <input 
-                              type="email" 
-                              placeholder="E-mail (Opcional)"
-                              value={formData.email}
-                              onChange={e => setFormData({...formData, email: e.target.value})}
-                              className="w-full bg-black/30 border border-white/10 p-3 text-white focus:outline-none focus:border-[var(--primary)] rounded"
-                            />
-                            <input 
                               type="tel" 
                               required
                               placeholder="Seu WhatsApp/Telefone"
@@ -842,28 +831,20 @@ const App: React.FC = () => {
                               onChange={e => setFormData({...formData, phone: e.target.value})}
                               className="w-full bg-black/30 border border-white/10 p-3 text-white focus:outline-none focus:border-[var(--primary)] rounded"
                             />
-                            <textarea
-                              placeholder="Endereço de Entrega"
-                              required
-                              rows={2}
-                              value={formData.address}
-                              onChange={e => setFormData({...formData, address: e.target.value})}
-                              className="w-full bg-black/30 border border-white/10 p-3 text-white focus:outline-none focus:border-[var(--primary)] rounded resize-none"
-                            />
                             
                             <button 
                               type="submit"
                               disabled={orderState === 'submitting'}
                               className="w-full bg-[#25D366] text-black py-4 font-bold tracking-widest uppercase hover:bg-[#128C7E] hover:text-white transition-colors flex justify-center items-center gap-2 mt-4 rounded-lg"
                             >
-                              {orderState === 'submitting' ? 'Abrindo WhatsApp...' : (
+                              {orderState === 'submitting' ? 'Enviando...' : (
                                 <>
-                                  <CreditCard className="w-4 h-4" /> Enviar para WhatsApp
+                                  <CreditCard className="w-4 h-4" /> Enviar Pedido
                                 </>
                               )}
                             </button>
                             <p className="text-[10px] text-gray-500 text-center mt-2">
-                              Você será redirecionado para o WhatsApp para confirmar o pedido.
+                              Você será redirecionado para o WhatsApp com a lista de produtos.
                             </p>
                           </form>
                         )}
@@ -876,7 +857,6 @@ const App: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Add Item Modal */}
       <AnimatePresence>
         {isAddModalOpen && (
           <motion.div
@@ -906,7 +886,6 @@ const App: React.FC = () => {
 
               <form onSubmit={handleAddItem} className="space-y-4">
                 
-                {/* Section Selector */}
                 <div>
                    <label className="text-xs uppercase tracking-widest text-gray-500 mb-1 block">Seção de Destino</label>
                    <div className="flex gap-4">
@@ -968,6 +947,17 @@ const App: React.FC = () => {
                 </div>
 
                 <div>
+                  <label className="text-xs uppercase tracking-widest text-gray-500 mb-1 block">Valor (R$)</label>
+                  <input 
+                    type="text" 
+                    value={newItem.price}
+                    onChange={e => setNewItem({...newItem, price: e.target.value})}
+                    placeholder="ex: 299,90"
+                    className="w-full bg-black/50 border border-white/10 p-3 text-sm text-white focus:outline-none focus:border-[var(--primary)] transition-colors"
+                  />
+                </div>
+
+                <div>
                   <label className="text-xs uppercase tracking-widest text-gray-500 mb-1 block">Imagem</label>
                   <div className="flex gap-2 mb-2">
                      <button 
@@ -1026,7 +1016,6 @@ const App: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Item Detail Modal */}
       <AnimatePresence>
         {selectedItem && (
           <motion.div
@@ -1043,7 +1032,6 @@ const App: React.FC = () => {
               onClick={(e) => e.stopPropagation()}
               className="relative w-full max-w-6xl bg-[#141415] border border-white/10 flex flex-col md:flex-row shadow-2xl overflow-hidden max-h-[90vh]"
             >
-              {/* Close Button */}
               <button
                 onClick={() => setSelectedItem(null)}
                 className="absolute top-6 right-6 z-20 p-2 bg-black/50 rounded-full text-white hover:bg-white hover:text-black transition-colors"
@@ -1052,13 +1040,11 @@ const App: React.FC = () => {
                 <X className="w-6 h-6" />
               </button>
 
-              {/* Image Side */}
               <div className="w-full md:w-1/2 h-64 md:h-auto relative bg-black">
                 <EditableImage
                   src={selectedItem.image}
                   alt={selectedItem.title}
                   onSave={(val) => {
-                     // Determine section based on ID presence
                      const section = lookbook.items.find(i => i.id === selectedItem.id) ? 'lookbook' : 'story';
                      updateContent(section, 'items', content[section].items.map(i => i.id === selectedItem.id ? {...i, image: val} : i));
                      setSelectedItem({...selectedItem, image: val});
@@ -1067,7 +1053,6 @@ const App: React.FC = () => {
                 />
               </div>
 
-              {/* Content Side */}
               <div className="w-full md:w-1/2 p-10 md:p-16 flex flex-col justify-center bg-[#141415] overflow-y-auto">
                   <span className="text-[var(--primary)] text-xs font-bold tracking-[0.2em] uppercase mb-4">{selectedItem.category}</span>
                   
@@ -1095,7 +1080,7 @@ const App: React.FC = () => {
                     />
                   </h4>
                   
-                  <div className="text-gray-400 leading-relaxed font-light mb-12">
+                  <div className="text-gray-400 leading-relaxed font-light mb-8">
                      <EditableText 
                       value={selectedItem.description}
                       onSave={(val) => {
@@ -1104,6 +1089,17 @@ const App: React.FC = () => {
                          setSelectedItem({...selectedItem, description: val});
                       }}
                       multiline
+                    />
+                  </div>
+
+                  <div className="text-4xl md:text-5xl text-[var(--primary)] font-bold mb-8 flex items-center gap-2">
+                     R$ <EditableText 
+                      value={selectedItem.price || ''}
+                      onSave={(val) => {
+                         const section = lookbook.items.find(i => i.id === selectedItem.id) ? 'lookbook' : 'story';
+                         updateContent(section, 'items', content[section].items.map(i => i.id === selectedItem.id ? {...i, price: val} : i));
+                         setSelectedItem({...selectedItem, price: val});
+                      }}
                     />
                   </div>
 
@@ -1116,7 +1112,6 @@ const App: React.FC = () => {
                     }}
                     className="group relative w-full overflow-hidden bg-[var(--primary)] text-black py-5 font-bold tracking-[0.2em] uppercase shadow-lg shadow-[var(--primary)]/20"
                   >
-                    {/* Shine Effect */}
                     <motion.div
                       className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent skew-x-12"
                       initial={{ x: '-150%' }}

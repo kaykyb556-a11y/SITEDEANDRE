@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useContent } from '../context/ContentContext';
-import { Edit2, Image as ImageIcon, Save, Upload, Link as LinkIcon, X, LogOut, Download, FileJson, Palette, Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Edit2, Image as ImageIcon, Save, Upload, Link as LinkIcon, X, LogOut, Download, FileJson, Palette, Loader2, CheckCircle, AlertTriangle, Cloud, CloudOff } from 'lucide-react';
 import { processImageFile } from '../utils/image';
 import { SiteContent } from '../types';
 
@@ -188,7 +188,7 @@ export const EditableImage: React.FC<EditableImageProps> = ({ src, alt, onSave, 
 };
 
 export const AdminToolbar: React.FC = () => {
-  const { content, isAdminMode, toggleAdminMode, resetContent, isAuthenticated, logout, importContent, updateContent, saveStatus } = useContent();
+  const { content, isAdminMode, toggleAdminMode, resetContent, isAuthenticated, logout, importContent, updateContent, saveStatus, isCloudEnabled } = useContent();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showColorPicker, setShowColorPicker] = useState(false);
 
@@ -229,7 +229,16 @@ export const AdminToolbar: React.FC = () => {
     <>
       {/* Visual Save Status Indicator */}
       {isAdminMode && (
-         <div className="fixed top-24 right-6 z-[100] pointer-events-none">
+         <div className="fixed top-24 right-6 z-[100] pointer-events-none flex flex-col gap-2 items-end">
+             {/* Cloud Status Badge */}
+             <div className={`px-4 py-2 rounded-full font-bold shadow-lg flex items-center gap-2 text-xs uppercase tracking-widest ${isCloudEnabled ? 'bg-blue-900/90 text-white' : 'bg-gray-700/90 text-gray-300'}`}>
+                {isCloudEnabled ? (
+                    <><Cloud className="w-4 h-4" /> Online (Público)</>
+                ) : (
+                    <><CloudOff className="w-4 h-4" /> Offline (Local)</>
+                )}
+             </div>
+
             {saveStatus === 'saving' && (
                 <div className="bg-yellow-500/90 backdrop-blur text-black px-4 py-2 rounded-full font-bold shadow-lg flex items-center gap-2 animate-pulse text-xs uppercase tracking-widest">
                     <Loader2 className="w-4 h-4 animate-spin" /> Salvando...
@@ -240,9 +249,14 @@ export const AdminToolbar: React.FC = () => {
                     <CheckCircle className="w-4 h-4" /> Salvo
                 </div>
             )}
+            {saveStatus === 'offline' && !isCloudEnabled && (
+                <div className="bg-gray-600 backdrop-blur text-white px-4 py-2 rounded-full font-bold shadow-lg flex items-center gap-2 text-xs uppercase tracking-widest">
+                    <CheckCircle className="w-4 h-4" /> Salvo Localmente
+                </div>
+            )}
             {saveStatus === 'error' && (
                 <div className="bg-red-600 text-white px-4 py-2 rounded-full font-bold shadow-lg flex items-center gap-2 text-xs uppercase tracking-widest">
-                    <AlertTriangle className="w-4 h-4" /> Erro ao Salvar (Espaço Cheio)
+                    <AlertTriangle className="w-4 h-4" /> Erro ao Salvar
                 </div>
             )}
          </div>

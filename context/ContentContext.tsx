@@ -5,6 +5,8 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { SiteContent, CollectionItem } from '../types';
+import { db, isFirebaseReady } from '../services/firebase';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 
 // Conteúdo Padrão (Default)
 const DEFAULT_CONTENT: SiteContent = {
@@ -36,7 +38,8 @@ const DEFAULT_CONTENT: SiteContent = {
         category: 'Materiais', 
         subtitle: 'Tecido Silk-flow com microplissados.',
         image: 'https://images.unsplash.com/photo-1528459061998-56fd57ad86e3?q=80&w=1000&auto=format&fit=crop',
-        description: 'Nossos tecidos são escolhidos para contar uma história de resiliência e elegância. Esta temporada apresenta seda tecnológica reciclada que se move como metal líquido.'
+        description: 'Nossos tecidos são escolhidos para contar uma história de resiliência e elegância. Esta temporada apresenta seda tecnológica reciclada que se move como metal líquido.',
+        price: '299,90'
       },
       { 
         id: '2', 
@@ -44,7 +47,8 @@ const DEFAULT_CONTENT: SiteContent = {
         category: 'Silhueta', 
         subtitle: 'Ombros estruturados encontrando drapeados fluidos.', 
         image: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000&auto=format&fit=crop',
-        description: 'O corpo é a tela. Usamos alfaiataria arquitetônica afiada para emoldurar a forma humana, criando silhuetas de poder para a era moderna.'
+        description: 'O corpo é a tela. Usamos alfaiataria arquitetônica afiada para emoldurar a forma humana, criando silhuetas de poder para a era moderna.',
+        price: '450,00'
       },
       { 
         id: '3', 
@@ -52,7 +56,8 @@ const DEFAULT_CONTENT: SiteContent = {
         category: 'Paleta', 
         subtitle: 'Violetas Profundos e Ouro Polido.',
         image: 'https://images.unsplash.com/photo-1550614000-4b9519e02a15?q=80&w=1000&auto=format&fit=crop',
-        description: 'Cores que respiram. Nossa paleta é inspirada na transição do crepúsculo para a noite elétrica da cidade.'
+        description: 'Cores que respiram. Nossa paleta é inspirada na transição do crepúsculo para a noite elétrica da cidade.',
+        price: '189,90'
       },
     ]
   },
@@ -72,7 +77,8 @@ const DEFAULT_CONTENT: SiteContent = {
         category: 'Look 01',
         subtitle: 'Caimento oversized com detalhes em metais dourados.',
         image: 'https://images.unsplash.com/photo-1539008835657-9e8e9680c956?q=80&w=1000&auto=format&fit=crop',
-        description: 'Uma peça essencial redefinida. O Blazer Noir apresenta ombro caído e botões de fecho dourados assinatura H&R.'
+        description: 'Uma peça essencial redefinida. O Blazer Noir apresenta ombro caído e botões de fecho dourados assinatura H&R.',
+        price: '580,00'
       },
       {
         id: '5',
@@ -80,7 +86,8 @@ const DEFAULT_CONTENT: SiteContent = {
         category: 'Look 02',
         subtitle: 'Camadas translúcidas com fio metálico.',
         image: 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?q=80&w=1000&auto=format&fit=crop',
-        description: 'Para os momentos que importam. Este vestido captura cada fóton de luz, criando uma aura pessoal de brilho.'
+        description: 'Para os momentos que importam. Este vestido captura cada fóton de luz, criando uma aura pessoal de brilho.',
+        price: '890,00'
       },
       {
         id: '6',
@@ -88,7 +95,8 @@ const DEFAULT_CONTENT: SiteContent = {
         category: 'Look 03',
         subtitle: 'Casaco resistente à água em violeta fosco.',
         image: 'https://images.unsplash.com/photo-1529139574466-a302d2052574?q=80&w=1000&auto=format&fit=crop',
-        description: 'Função encontra alta moda. O Urban Shell é projetado para o andarilho da cidade que se recusa a comprometer o estilo.'
+        description: 'Função encontra alta moda. O Urban Shell é projetado para o andarilho da cidade que se recusa a comprometer o estilo.',
+        price: '340,00'
       }
     ]
   },
@@ -105,7 +113,8 @@ interface ContentContextType {
   content: SiteContent;
   isAdminMode: boolean;
   isAuthenticated: boolean;
-  saveStatus: 'idle' | 'saving' | 'saved' | 'error';
+  saveStatus: 'idle' | 'saving' | 'saved' | 'error' | 'offline';
+  isCloudEnabled: boolean;
   cart: CollectionItem[];
   isCartOpen: boolean;
   setIsCartOpen: (isOpen: boolean) => void;
@@ -129,19 +138,19 @@ export const ContentProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [content, setContent] = useState<SiteContent>(DEFAULT_CONTENT);
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error' | 'offline'>('idle');
   
   // Cart State
   const [cart, setCart] = useState<CollectionItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
-  // Load from LocalStorage on mount
+  // Initial Data Load
   useEffect(() => {
+    // 1. Tentar carregar do LocalStorage primeiro para exibição imediata
     const savedContent = localStorage.getItem('site_content');
     if (savedContent) {
       try {
         const parsed = JSON.parse(savedContent);
-        // Ensure theme exists for older saves
         if (!parsed.theme) parsed.theme = DEFAULT_CONTENT.theme;
         setContent(parsed);
       } catch (e) {
@@ -149,58 +158,89 @@ export const ContentProvider: React.FC<{ children: ReactNode }> = ({ children })
       }
     }
     
+    // 2. Se Firebase estiver ativo, subscrever a atualizações em tempo real (PARA TODO MUNDO)
+    if (isFirebaseReady && db) {
+      setSaveStatus('idle'); // Cloud ready
+      const unsubscribe = onSnapshot(doc(db, "site_data", "main_content"), (docSnap) => {
+        if (docSnap.exists()) {
+          const cloudData = docSnap.data() as SiteContent;
+          // Merge simples para garantir estrutura
+          const merged = { ...DEFAULT_CONTENT, ...cloudData };
+          setContent(merged);
+          // Atualiza o local também para backup
+          localStorage.setItem('site_content', JSON.stringify(merged));
+        } else {
+          // Se documento não existe na nuvem, cria com o atual
+          if (isAdminMode) {
+             setDoc(doc(db, "site_data", "main_content"), content);
+          }
+        }
+      }, (error) => {
+        console.error("Erro na sincronização:", error);
+        setSaveStatus('error');
+      });
+
+      return () => unsubscribe();
+    } else {
+      setSaveStatus('offline');
+    }
+
     // Load cart
     const savedCart = localStorage.getItem('site_cart');
     if (savedCart) {
       try {
         setCart(JSON.parse(savedCart));
-      } catch (e) {
-        console.error("Failed to parse cart", e);
-      }
+      } catch (e) { console.error(e); }
     }
 
-    // Check if session exists (simple persistence for session)
+    // Session
     const session = sessionStorage.getItem('admin_session');
     if (session === 'true') {
       setIsAuthenticated(true);
       setIsAdminMode(true);
     }
-  }, []);
+  }, []); // Run once on mount
 
-  // Save to LocalStorage whenever content changes with Debounce and Status
+  // Save Logic
   useEffect(() => {
-    // Avoid saving the initial state immediately if it matches default
     if (JSON.stringify(content) === JSON.stringify(DEFAULT_CONTENT) && !localStorage.getItem('site_content')) {
       return;
     }
 
     const saveToStorage = async () => {
       setSaveStatus('saving');
-      
-      // Artificial delay to let user see "Saving" and prevent thread blocking on rapid typing
-      await new Promise(resolve => setTimeout(resolve, 600));
+      await new Promise(resolve => setTimeout(resolve, 600)); // Visual feedback delay
 
       try {
+        // Sempre salva Local
         localStorage.setItem('site_content', JSON.stringify(content));
-        setSaveStatus('saved');
         
-        // Clear saved status after a moment
-        setTimeout(() => setSaveStatus('idle'), 2500);
+        // Se Firebase configurado, salva na Nuvem
+        if (isFirebaseReady && db) {
+           await setDoc(doc(db, "site_data", "main_content"), content);
+        }
+
+        setSaveStatus(isFirebaseReady ? 'saved' : 'offline');
+        
+        if (isFirebaseReady) {
+           setTimeout(() => setSaveStatus('idle'), 2500);
+        }
       } catch (e) {
-        console.error("Storage limit reached", e);
+        console.error("Erro ao salvar", e);
         setSaveStatus('error');
       }
     };
 
-    const timeoutId = setTimeout(saveToStorage, 1000); // Wait 1s after last edit to save
+    const timeoutId = setTimeout(saveToStorage, 1000); // Debounce
     return () => clearTimeout(timeoutId);
   }, [content]);
 
-  // Save cart
+  // Save cart (always local)
   useEffect(() => {
     localStorage.setItem('site_cart', JSON.stringify(cart));
   }, [cart]);
 
+  // ... (Restante das funções auxiliares permanecem iguais)
   const addToCart = (item: CollectionItem) => {
     setCart(prev => [...prev, item]);
     setIsCartOpen(true);
@@ -210,9 +250,7 @@ export const ContentProvider: React.FC<{ children: ReactNode }> = ({ children })
     setCart(prev => prev.filter((_, i) => i !== index));
   };
 
-  const clearCart = () => {
-    setCart([]);
-  };
+  const clearCart = () => setCart([]);
 
   const login = (password: string) => {
     if (password === 'admin') {
@@ -265,13 +303,7 @@ export const ContentProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const reorderItems = (section: 'story' | 'lookbook', newItems: CollectionItem[]) => {
     if (!isAuthenticated) return;
-    setContent(prev => ({
-      ...prev,
-      [section]: {
-        ...prev[section],
-        items: newItems
-      }
-    }));
+    setContent(prev => ({ ...prev, [section]: { ...prev[section], items: newItems } }));
   };
 
   const addCollectionItem = (section: 'story' | 'lookbook', item: CollectionItem) => {
@@ -287,14 +319,12 @@ export const ContentProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const importContent = (newContent: SiteContent) => {
     if (!isAuthenticated) return;
-    if (window.confirm("Isso substituirá todo o conteúdo atual pelo arquivo importado. Deseja continuar?")) {
-      setContent(newContent);
-    }
+    if (window.confirm("Isso substituirá o conteúdo. Continuar?")) setContent(newContent);
   };
 
   const resetContent = () => {
     if (!isAuthenticated) return;
-    if (window.confirm("Tem certeza? Isso resetará todas as edições para o padrão.")) {
+    if (window.confirm("Resetar para o padrão?")) {
       setContent(DEFAULT_CONTENT);
       localStorage.removeItem('site_content');
     }
@@ -306,6 +336,7 @@ export const ContentProvider: React.FC<{ children: ReactNode }> = ({ children })
       isAdminMode,
       isAuthenticated,
       saveStatus,
+      isCloudEnabled: isFirebaseReady,
       cart,
       isCartOpen,
       setIsCartOpen,

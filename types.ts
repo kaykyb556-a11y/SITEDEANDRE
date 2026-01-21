@@ -11,6 +11,7 @@ export interface CollectionItem {
   image: string;
   category: string;
   description: string;
+  price?: string; // Novo campo para o valor
 }
 
 export interface ChatMessage {
