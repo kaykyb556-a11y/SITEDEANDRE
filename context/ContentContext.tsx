@@ -5,8 +5,6 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { SiteContent, CollectionItem } from '../types';
-import { db, isFirebaseReady } from '../services/firebase';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 
 // Conteúdo Padrão (Default)
 const DEFAULT_CONTENT: SiteContent = {
@@ -146,7 +144,7 @@ export const ContentProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   // Initial Data Load
   useEffect(() => {
-    // 1. Tentar carregar do LocalStorage primeiro para exibição imediata
+    // Carregar do LocalStorage
     const savedContent = localStorage.getItem('site_content');
     if (savedContent) {
       try {
@@ -158,32 +156,8 @@ export const ContentProvider: React.FC<{ children: ReactNode }> = ({ children })
       }
     }
     
-    // 2. Se Firebase estiver ativo, subscrever a atualizações em tempo real (PARA TODO MUNDO)
-    if (isFirebaseReady && db) {
-      setSaveStatus('idle'); // Cloud ready
-      const unsubscribe = onSnapshot(doc(db, "site_data", "main_content"), (docSnap) => {
-        if (docSnap.exists()) {
-          const cloudData = docSnap.data() as SiteContent;
-          // Merge simples para garantir estrutura
-          const merged = { ...DEFAULT_CONTENT, ...cloudData };
-          setContent(merged);
-          // Atualiza o local também para backup
-          localStorage.setItem('site_content', JSON.stringify(merged));
-        } else {
-          // Se documento não existe na nuvem, cria com o atual
-          if (isAdminMode) {
-             setDoc(doc(db, "site_data", "main_content"), content);
-          }
-        }
-      }, (error) => {
-        console.error("Erro na sincronização:", error);
-        setSaveStatus('error');
-      });
-
-      return () => unsubscribe();
-    } else {
-      setSaveStatus('offline');
-    }
+    // Status offline
+    setSaveStatus('offline');
 
     // Load cart
     const savedCart = localStorage.getItem('site_cart');
@@ -215,16 +189,9 @@ export const ContentProvider: React.FC<{ children: ReactNode }> = ({ children })
         // Sempre salva Local
         localStorage.setItem('site_content', JSON.stringify(content));
         
-        // Se Firebase configurado, salva na Nuvem
-        if (isFirebaseReady && db) {
-           await setDoc(doc(db, "site_data", "main_content"), content);
-        }
-
-        setSaveStatus(isFirebaseReady ? 'saved' : 'offline');
+        setSaveStatus('saved');
         
-        if (isFirebaseReady) {
-           setTimeout(() => setSaveStatus('idle'), 2500);
-        }
+        setTimeout(() => setSaveStatus('idle'), 2500);
       } catch (e) {
         console.error("Erro ao salvar", e);
         setSaveStatus('error');
@@ -336,7 +303,7 @@ export const ContentProvider: React.FC<{ children: ReactNode }> = ({ children })
       isAdminMode,
       isAuthenticated,
       saveStatus,
-      isCloudEnabled: isFirebaseReady,
+      isCloudEnabled: false, // Firebase desativado
       cart,
       isCartOpen,
       setIsCartOpen,
