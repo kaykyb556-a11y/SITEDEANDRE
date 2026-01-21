@@ -26,8 +26,15 @@ export enum Section {
   RSVP = 'rsvp',
 }
 
+export interface SiteTheme {
+  primary: string;   // Cor de destaque (ex: Dourado)
+  background: string; // Cor de fundo (ex: Preto)
+  secondary: string; // Cor secundária (ex: Roxo)
+}
+
 // Tipos para o CMS (Sistema de Conteúdo)
 export interface SiteContent {
+  theme: SiteTheme;
   hero: {
     subtitle: string;
     title: string;

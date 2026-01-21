@@ -26,7 +26,7 @@ const ArtistCard: React.FC<ArtistCardProps> = ({ artist, section, onClick }) => 
 
   return (
     <motion.div
-      className="group relative h-[500px] md:h-[650px] w-full overflow-hidden border-b md:border-r border-white/5 bg-[#0F0F10] cursor-pointer"
+      className="group relative h-[400px] md:h-[650px] w-full overflow-hidden border-b md:border-r border-white/5 bg-[#0F0F10] cursor-pointer"
       initial="rest"
       whileHover={isAdminMode ? "rest" : "hover"}
       whileTap={isAdminMode ? "rest" : "hover"}
@@ -46,7 +46,7 @@ const ArtistCard: React.FC<ArtistCardProps> = ({ artist, section, onClick }) => 
       </div>
 
       {/* Overlay Info */}
-      <div className="absolute inset-0 p-8 flex flex-col justify-between z-10">
+      <div className="absolute inset-0 p-6 md:p-8 flex flex-col justify-between z-10">
         <div className="flex justify-between items-start pointer-events-auto">
            <span className="text-xs font-serif italic text-[#D4AF37] border border-[#D4AF37]/30 px-3 py-1 rounded-full backdrop-blur-md">
              <EditableText value={artist.category} onSave={handleTextSave('category')} />
@@ -57,9 +57,9 @@ const ArtistCard: React.FC<ArtistCardProps> = ({ artist, section, onClick }) => 
                  rest: { opacity: 0, x: 20, y: -20 },
                  hover: { opacity: 1, x: 0, y: 0 }
                }}
-               className="bg-white text-black rounded-full p-3 will-change-transform"
+               className="bg-white text-black rounded-full p-2 md:p-3 will-change-transform"
              >
-               <ArrowUpRight className="w-5 h-5" />
+               <ArrowUpRight className="w-4 h-4 md:w-5 md:h-5" />
              </motion.div>
            )}
         </div>

@@ -8,6 +8,11 @@ import { SiteContent, CollectionItem } from '../types';
 
 // Conteúdo Padrão (Default)
 const DEFAULT_CONTENT: SiteContent = {
+  theme: {
+    primary: '#D4AF37',
+    background: '#0F0F10',
+    secondary: '#8A2BE2'
+  },
   hero: {
     subtitle: 'Drop Imersivo',
     title: 'H&R GRIFES',
@@ -100,12 +105,21 @@ interface ContentContextType {
   content: SiteContent;
   isAdminMode: boolean;
   isAuthenticated: boolean;
+  saveStatus: 'idle' | 'saving' | 'saved' | 'error';
+  cart: CollectionItem[];
+  isCartOpen: boolean;
+  setIsCartOpen: (isOpen: boolean) => void;
+  addToCart: (item: CollectionItem) => void;
+  removeFromCart: (index: number) => void;
+  clearCart: () => void;
   login: (password: string) => boolean;
   logout: () => void;
   toggleAdminMode: () => void;
   updateContent: (section: keyof SiteContent, key: string, value: any) => void;
   updateCollectionItem: (section: 'story' | 'lookbook', itemId: string, field: keyof CollectionItem, value: string) => void;
+  reorderItems: (section: 'story' | 'lookbook', newItems: CollectionItem[]) => void;
   addCollectionItem: (section: 'story' | 'lookbook', item: CollectionItem) => void;
+  importContent: (newContent: SiteContent) => void;
   resetContent: () => void;
 }
 
@@ -115,15 +129,33 @@ export const ContentProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [content, setContent] = useState<SiteContent>(DEFAULT_CONTENT);
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  
+  // Cart State
+  const [cart, setCart] = useState<CollectionItem[]>([]);
+  const [isCartOpen, setIsCartOpen] = useState(false);
 
   // Load from LocalStorage on mount
   useEffect(() => {
     const savedContent = localStorage.getItem('site_content');
     if (savedContent) {
       try {
-        setContent(JSON.parse(savedContent));
+        const parsed = JSON.parse(savedContent);
+        // Ensure theme exists for older saves
+        if (!parsed.theme) parsed.theme = DEFAULT_CONTENT.theme;
+        setContent(parsed);
       } catch (e) {
         console.error("Failed to parse saved content", e);
+      }
+    }
+    
+    // Load cart
+    const savedCart = localStorage.getItem('site_cart');
+    if (savedCart) {
+      try {
+        setCart(JSON.parse(savedCart));
+      } catch (e) {
+        console.error("Failed to parse cart", e);
       }
     }
 
@@ -135,13 +167,54 @@ export const ContentProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   }, []);
 
-  // Save to LocalStorage whenever content changes
+  // Save to LocalStorage whenever content changes with Debounce and Status
   useEffect(() => {
-    localStorage.setItem('site_content', JSON.stringify(content));
+    // Avoid saving the initial state immediately if it matches default
+    if (JSON.stringify(content) === JSON.stringify(DEFAULT_CONTENT) && !localStorage.getItem('site_content')) {
+      return;
+    }
+
+    const saveToStorage = async () => {
+      setSaveStatus('saving');
+      
+      // Artificial delay to let user see "Saving" and prevent thread blocking on rapid typing
+      await new Promise(resolve => setTimeout(resolve, 600));
+
+      try {
+        localStorage.setItem('site_content', JSON.stringify(content));
+        setSaveStatus('saved');
+        
+        // Clear saved status after a moment
+        setTimeout(() => setSaveStatus('idle'), 2500);
+      } catch (e) {
+        console.error("Storage limit reached", e);
+        setSaveStatus('error');
+      }
+    };
+
+    const timeoutId = setTimeout(saveToStorage, 1000); // Wait 1s after last edit to save
+    return () => clearTimeout(timeoutId);
   }, [content]);
 
+  // Save cart
+  useEffect(() => {
+    localStorage.setItem('site_cart', JSON.stringify(cart));
+  }, [cart]);
+
+  const addToCart = (item: CollectionItem) => {
+    setCart(prev => [...prev, item]);
+    setIsCartOpen(true);
+  };
+
+  const removeFromCart = (index: number) => {
+    setCart(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const clearCart = () => {
+    setCart([]);
+  };
+
   const login = (password: string) => {
-    // Hardcoded password for demonstration
     if (password === 'admin') {
       setIsAuthenticated(true);
       setIsAdminMode(true);
@@ -190,6 +263,17 @@ export const ContentProvider: React.FC<{ children: ReactNode }> = ({ children })
     });
   };
 
+  const reorderItems = (section: 'story' | 'lookbook', newItems: CollectionItem[]) => {
+    if (!isAuthenticated) return;
+    setContent(prev => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        items: newItems
+      }
+    }));
+  };
+
   const addCollectionItem = (section: 'story' | 'lookbook', item: CollectionItem) => {
     if (!isAuthenticated) return;
     setContent(prev => ({
@@ -199,6 +283,13 @@ export const ContentProvider: React.FC<{ children: ReactNode }> = ({ children })
         items: [...prev[section].items, item]
       }
     }));
+  };
+
+  const importContent = (newContent: SiteContent) => {
+    if (!isAuthenticated) return;
+    if (window.confirm("Isso substituirá todo o conteúdo atual pelo arquivo importado. Deseja continuar?")) {
+      setContent(newContent);
+    }
   };
 
   const resetContent = () => {
@@ -214,12 +305,21 @@ export const ContentProvider: React.FC<{ children: ReactNode }> = ({ children })
       content, 
       isAdminMode,
       isAuthenticated,
+      saveStatus,
+      cart,
+      isCartOpen,
+      setIsCartOpen,
+      addToCart,
+      removeFromCart,
+      clearCart,
       login,
       logout,
       toggleAdminMode, 
       updateContent, 
       updateCollectionItem,
+      reorderItems,
       addCollectionItem,
+      importContent,
       resetContent 
     }}>
       {children}
